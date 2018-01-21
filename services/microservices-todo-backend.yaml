@@ -2,10 +2,6 @@ Description: >
     This is a Todo backend service
 Parameters: 
 
-    TargetGroupName:
-        Description: An target group name that will be prefixed to resource names
-        Type: String
-
     VPC:
         Description: The VPC that the ECS cluster is deployed to
         Type: AWS::EC2::VPC::Id
@@ -23,10 +19,15 @@ Parameters:
         Description: The Application Load Balancer to register with
         Type: String
 
+    TodoMongodbDNS:
+        Description: The access to Todo backend Service
+        Type: String
+
 Resources:
 
     Service: 
         Type: AWS::ECS::Service
+        DependsOn: LoadBalancerListener
         Properties: 
             Cluster: !Ref Cluster
             DesiredCount: !Ref DesiredCount
@@ -48,8 +49,12 @@ Resources:
                   Essential: true
                   Image: gustavoapolinario/microservices-node-todo-backend
                   Memory: 256
-                  Environment: 
-                    - Name: PORT
+                  Environment:
+                    - Name: MONGODB
+                      Value: !Ref TodoMongodbDNS
+                    - Name: MONGODB_PORT
+                      Value: 3001
+                    - Name: 27017
                       Value: 3001
                   PortMappings:
                     - ContainerPort: 3001
@@ -79,7 +84,7 @@ Resources:
     TargetGroup:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
         Properties:
-            Name: !Ref TargetGroupName
+            Name: "TGTodoBackEnd"
             VpcId: !Ref VPC
             Port: 3001
             Protocol: TCP

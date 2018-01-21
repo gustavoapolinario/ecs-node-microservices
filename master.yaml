@@ -59,6 +59,16 @@ Resources:
                 Listener: !GetAtt ALB.Outputs.Listener 
                 Path: /static/*
 
+    TodoMongodb:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-mongodb.yaml
+            Parameters:
+                VPC: !GetAtt VPC.Outputs.VPC
+                Cluster: !GetAtt ECS.Outputs.Cluster
+                DesiredCount: 1
+                LoadBalancer: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancer
+
     NLBTodoBackEnd:
         Type: AWS::CloudFormation::Stack
         Properties:
@@ -78,7 +88,7 @@ Resources:
                 Cluster: !GetAtt ECS.Outputs.Cluster
                 DesiredCount: 2
                 LoadBalancer: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancer
-                TargetGroupName: TGTodoBackEnd
+                TodoMongodbDNS: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancerDNS
 
     TodoFrontEnd:
         Type: AWS::CloudFormation::Stack
