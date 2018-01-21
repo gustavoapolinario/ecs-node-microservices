@@ -24,7 +24,7 @@ Parameters:
         Type: String
         Default: /todo/*
 
-    TodoBackendService:
+    TodoBackEndDNS:
         Description: The access to Todo backend Service
         Type: String
 
@@ -54,7 +54,7 @@ Resources:
                   Memory: 128
                   Environment: 
                     - Name: TODO_BACKEND
-                      Value: !Ref TodoBackendService
+                      Value: !Ref TodoBackEndDNS
                     - Name: TODO_BACKEND_PORT
                       Value: 3001
                     - Name: PORT

@@ -40,6 +40,6 @@ Outputs:
         Description: A reference to the Network Load Balancer
         Value: !Ref LoadBalancer
 
-    LoadBalancerUrl:
+    LoadBalancerDNS:
         Description: The URL of the ALB
         Value: !GetAtt LoadBalancer.DNSName

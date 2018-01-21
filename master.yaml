@@ -80,6 +80,18 @@ Resources:
                 LoadBalancer: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancer
                 TargetGroupName: TGTodoBackEnd
 
+    TodoFrontEnd:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-todo-frontend.yaml
+            Parameters:
+                VPC: !GetAtt VPC.Outputs.VPC
+                Cluster: !GetAtt ECS.Outputs.Cluster
+                DesiredCount: 2
+                Listener: !GetAtt ALB.Outputs.Listener
+                Path: /todo/*
+                TodoBackEndDNS: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancerDNS
+
 
 
 Outputs:
