@@ -7,9 +7,6 @@ Parameters:
         Description: An environment name that will be prefixed to resource names
         Type: String
 
-    EnvironmentName2:
-        Description: An environment name that will be prefixed to resource names
-        Type: String
 
     VPC:
         Type: AWS::EC2::VPC::Id
@@ -28,7 +25,7 @@ Resources:
     LoadBalancer:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
-            Name: !Join [ "-", [ !Ref EnvironmentName, !Ref EnvironmentName2 ]]
+            Name: !Join [ "-", [ "NLB", !Ref EnvironmentName ]]
             Subnets: !Ref Subnets
             Tags: 
                 - Key: Name
@@ -36,26 +33,6 @@ Resources:
             Scheme: internal
             Type: network
 
-    LoadBalancerListener:
-        Type: AWS::ElasticLoadBalancingV2::Listener
-        Properties:
-            LoadBalancerArn: !Ref LoadBalancer
-            Port: 3000
-            Protocol: TCP 
-            DefaultActions: 
-                - Type: forward
-                  TargetGroupArn: !Ref DefaultTargetGroup
-
-    # We define a default target group here, as this is a mandatory Parameters
-    # when creating an Network Load Balancer Listener. This is not used, instead
-    # a target group is created per-service in each service template (../services/*)
-    DefaultTargetGroup:
-        Type: AWS::ElasticLoadBalancingV2::TargetGroup
-        Properties:
-            Name: !Join [ "-", [ !Ref EnvironmentName, !Ref EnvironmentName2, "default" ]]
-            VpcId: !Ref VPC
-            Port: 3000
-            Protocol: TCP
            
 Outputs:
 
@@ -66,7 +43,3 @@ Outputs:
     LoadBalancerUrl:
         Description: The URL of the ALB
         Value: !GetAtt LoadBalancer.DNSName
-
-    Listener:
-        Description: A reference to a port 3000 listener
-        Value: !Ref LoadBalancerListener
