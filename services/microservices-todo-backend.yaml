@@ -53,8 +53,8 @@ Resources:
                     - Name: MONGODB
                       Value: !Ref TodoMongodbDNS
                     - Name: MONGODB_PORT
-                      Value: 3001
-                    - Name: 27017
+                      Value: 27017
+                    - Name: PORT
                       Value: 3001
                   PortMappings:
                     - ContainerPort: 3001
