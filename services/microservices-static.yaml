@@ -31,7 +31,6 @@ Resources:
         DependsOn: ListenerRule
         Properties: 
             Cluster: !Ref Cluster
-            ServiceName: "static-service"
             Role: !Ref ServiceRole
             DesiredCount: !Ref DesiredCount
             TaskDefinition: !Ref TaskDefinition
@@ -105,7 +104,7 @@ Resources:
               - /
               - - service
                 - !Ref Cluster
-                - static-service
+                - !GetAtt 'Service.Name'
             RoleARN: !GetAtt ScalingRole.Arn
             ScalableDimension: ecs:service:DesiredCount
             ServiceNamespace: ecs
