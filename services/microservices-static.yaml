@@ -38,6 +38,11 @@ Resources:
                 - ContainerName: "static-service"
                   ContainerPort: 80
                   TargetGroupArn: !Ref TargetGroup
+            DeploymentConfiguration:
+                MaximumPercent: 200
+                MinimumHealthyPercent: 100
+            DesiredCount: 1
+            HealthCheckGracePeriodSeconds: 120
 
     TaskDefinition:
         Type: AWS::ECS::TaskDefinition
@@ -48,6 +53,7 @@ Resources:
                   Essential: true
                   Image: gustavoapolinario/microservices-static-files
                   Memory: 128
+                  Cpu: '10'
                   PortMappings:
                     - ContainerPort: 80
                   LogConfiguration:
@@ -89,6 +95,96 @@ Resources:
                 - TargetGroupArn: !Ref TargetGroup
                   Type: forward
 
+    ScalableTarget:
+        Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+        Properties:
+            MaxCapacity: 10
+            MinCapacity: 1
+            ResourceId: !Join
+              - /
+              - - service
+                - !Ref Cluster
+                - !GetAtt 'Service.Name'
+            RoleARN: !GetAtt ScalingRole.Arn
+            ScalableDimension: ecs:service:DesiredCount
+            ServiceNamespace: ecs
+
+
+
+
+    ScaleUpPolicy:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-up'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 300
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalLowerBound: 0
+                    ScalingAdjustment: 25
+
+    ScaleDownPolicy:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-down'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 300
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalUpperBound: 0
+                    ScalingAdjustment: -25
+
+    CPUUtilizationHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is running out of CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref Cluster
+              - Name: ServiceName
+                Value: !GetAtt 'Service.Name'
+            MetricName: CPUUtilization
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average
+            Period: 300
+            EvaluationPeriods: 1
+            Threshold: 60
+            AlarmActions:
+              - !Ref ScaleUpPolicy
+
+    CPUUtilizationLowAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is wasting CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref Cluster
+              - Name: ServiceName
+                Value: !GetAtt 'Service.Name'
+            MetricName: CPUUtilization
+            ComparisonOperator: LessThanThreshold
+            Statistic: Average
+            Period: 300
+            EvaluationPeriods: 3
+            Threshold: 30
+            AlarmActions:
+              - !Ref ScaleDownPolicy
+
+
+
+
+
+
+
+
     # This IAM Role grants the service access to register/unregister with the 
     # Application Load Balancer (ALB). It is based on the default documented here:
     # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_IAM_role.html
@@ -126,3 +222,34 @@ Resources:
                                 "Resource": "*"
                         }]
                     }
+
+    ScalingRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+            RoleName: !Sub ecs-scale-${AWS::StackName}
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                        Service:
+                          - application-autoscaling.amazonaws.com
+                    Action:
+                      - 'sts:AssumeRole'
+            Path: /
+            Policies:
+              - PolicyName: 'root'
+                PolicyDocument:
+                    Version: 2012-10-17
+                    Statement:
+                          - Effect: Allow
+                            Action: 
+                                - "ecs:UpdateService"
+                                - "ecs:DescribeServices"
+                                - "application-autoscaling:*"
+                                - "cloudwatch:PutMetricAlarm"
+                                - "cloudwatch:DescribeAlarms"
+                                - "cloudwatch:GetMetricStatistics"
+                                - "cloudwatch:SetAlarmState"
+                                - "cloudwatch:DeleteAlarms"
+                            Resource: '*'

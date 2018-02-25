@@ -1,0 +1,124 @@
+Description: >
+    Dynamodb Service
+    Author: Gustavo APolinario <gustavo.guss@gmail.com>
+
+Mappings: 
+# DynamoDb Endpoints: https://docs.aws.amazon.com/general/latest/gr/rande.html#ddb_region
+  Region: 
+    us-east-2: 
+      endpoint: dynamodb.us-east-2.amazonaws.com
+    us-east-1: 
+      endpoint: dynamodb.us-east-1.amazonaws.com
+    us-west-1: 
+      endpoint: dynamodb.us-west-1.amazonaws.com
+    us-west-2: 
+      endpoint: dynamodb.us-west-2.amazonaws.com
+    ap-northeast-1: 
+      endpoint: dynamodb.ap-northeast-1.amazonaws.com
+    ap-northeast-2: 
+      endpoint: dynamodb.ap-northeast-2.amazonaws.com
+    ap-northeast-3: 
+      endpoint: dynamodb.ap-northeast-3.amazonaws.com
+    ap-south-1: 
+      endpoint: dynamodb.ap-south-1.amazonaws.com
+    ap-southeast-1: 
+      endpoint: dynamodb.ap-southeast-1.amazonaws.com
+    ap-southeast-2: 
+      endpoint: dynamodb.ap-southeast-2.amazonaws.com
+    ca-central-1: 
+      endpoint: dynamodb.ca-central-1.amazonaws.com
+    cn-north-1: 
+      endpoint: dynamodb.cn-north-1.amazonaws.com.cn
+    cn-northwest-1: 
+      endpoint: dynamodb.cn-northwest-1.amazonaws.com.cn
+    eu-central-1: 
+      endpoint: dynamodb.eu-central-1.amazonaws.com
+    eu-west-1: 
+      endpoint: dynamodb.eu-west-1.amazonaws.com
+    eu-west-2: 
+      endpoint: dynamodb.eu-west-2.amazonaws.com
+    eu-west-3: 
+      endpoint: dynamodb.eu-west-3.amazonaws.com
+    sa-east-1: 
+      endpoint: dynamodb.sa-east-1.amazonaws.com
+    us-gov-west-1: 
+      endpoint: dynamodb.us-gov-west-1.amazonaws.co
+
+Resources:
+  DDBTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      TableName: Todo
+      AttributeDefinitions:
+        -
+          AttributeName: "createdAt"
+          AttributeType: "S"
+      KeySchema:
+        -
+          AttributeName: "createdAt"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+  WriteCapacityScalableTarget:
+    Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+    Properties:
+      MaxCapacity: 5
+      MinCapacity: 1
+      ResourceId: !Join
+        - /
+        - - table
+          - !Ref DDBTable
+      RoleARN: !GetAtt ScalingRole.Arn
+      ScalableDimension: dynamodb:table:WriteCapacityUnits
+      ServiceNamespace: dynamodb
+  ScalingRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - application-autoscaling.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "root"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "dynamodb:DescribeTable"
+                  - "dynamodb:UpdateTable"
+                  - "cloudwatch:PutMetricAlarm"
+                  - "cloudwatch:DescribeAlarms"
+                  - "cloudwatch:GetMetricStatistics"
+                  - "cloudwatch:SetAlarmState"
+                  - "cloudwatch:DeleteAlarms"
+                Resource: "*"
+  WriteScalingPolicy:
+    Type: "AWS::ApplicationAutoScaling::ScalingPolicy"
+    Properties:
+      PolicyName: WriteAutoScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WriteCapacityScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 50.0
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+        PredefinedMetricSpecification:
+          PredefinedMetricType: DynamoDBWriteCapacityUtilization
+
+
+Outputs:
+
+    Endpoint: 
+        Description: The URL endpoint for dynamodb service
+        Value: !FindInMap ["Region", !Ref "AWS::Region", "endpoint"]

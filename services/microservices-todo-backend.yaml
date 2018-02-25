@@ -51,13 +51,30 @@ Resources:
                   Memory: 256
                   Environment:
                     - Name: MONGODB
-                      Value: !Ref TodoMongodbDNS
+                      Value: "todo-mongodb"
                     - Name: MONGODB_PORT
-                      Value: 27017
+                      Value: 80
                     - Name: PORT
                       Value: 3001
                   PortMappings:
                     - ContainerPort: 3001
+                  LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-group: !Ref AWS::StackName
+                        awslogs-region: !Ref AWS::Region
+                  Links:
+                    - todo-mongodb
+
+                - Name: todo-mongodb
+                  Essential: true
+                  Image: mongo
+                  Memory: 256
+                  Environment: 
+                    - Name: PORT
+                      Value: 27017
+                  PortMappings:
+                    - ContainerPort: 27017
                   LogConfiguration:
                     LogDriver: awslogs
                     Options:
@@ -89,3 +106,122 @@ Resources:
             Port: 3001
             Protocol: TCP
 
+
+
+
+
+    ScalableTarget:
+        Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+        Properties:
+            MaxCapacity: 10
+            MinCapacity: 1
+            ResourceId: !Join
+              - /
+              - - service
+                - !Ref Cluster
+                - !GetAtt 'Service.Name'
+            RoleARN: !GetAtt ScalingRole.Arn
+            ScalableDimension: ecs:service:DesiredCount
+            ServiceNamespace: ecs
+
+
+
+
+    ScaleUpPolicy:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-up'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 300
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalLowerBound: 0
+                    ScalingAdjustment: 25
+
+    ScaleDownPolicy:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-down'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 300
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalUpperBound: 0
+                    ScalingAdjustment: -25
+
+    CPUUtilizationHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is running out of CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref Cluster
+              - Name: ServiceName
+                Value: !GetAtt 'Service.Name'
+            MetricName: CPUUtilization
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average
+            Period: 300
+            EvaluationPeriods: 1
+            Threshold: 60
+            AlarmActions:
+              - !Ref ScaleUpPolicy
+
+    CPUUtilizationLowAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is wasting CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref Cluster
+              - Name: ServiceName
+                Value: !GetAtt 'Service.Name'
+            MetricName: CPUUtilization
+            ComparisonOperator: LessThanThreshold
+            Statistic: Average
+            Period: 300
+            EvaluationPeriods: 3
+            Threshold: 30
+            AlarmActions:
+              - !Ref ScaleDownPolicy
+
+
+    ScalingRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+            RoleName: !Sub ecs-scale-${AWS::StackName}
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                        Service:
+                            - application-autoscaling.amazonaws.com
+                    Action:
+                      - 'sts:AssumeRole'
+            Path: /
+            Policies:
+              - PolicyName: 'root'
+                PolicyDocument:
+                    Version: 2012-10-17
+                    Statement:
+                          - Effect: Allow
+                            Action: 
+                                - "ecs:UpdateService"
+                                - "ecs:DescribeServices"
+                                - "application-autoscaling:*"
+                                - "cloudwatch:PutMetricAlarm"
+                                - "cloudwatch:DescribeAlarms"
+                                - "cloudwatch:GetMetricStatistics"
+                                - "cloudwatch:SetAlarmState"
+                                - "cloudwatch:DeleteAlarms"
+                            Resource: '*'
+        

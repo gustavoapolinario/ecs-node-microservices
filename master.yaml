@@ -1,7 +1,6 @@
 Description: >
     Template example base on https://github.com/awslabs/ecs-refarch-cloudformation
     https://docs.aws.amazon.com/pt_br/AWSCloudFormation/latest/UserGuide/quickref-ecs.html
-    http://localhost:8080/static/healthcheck.html
     Author: Gustavo APolinario <gustavo.guss@gmail.com>
 Resources:
 
@@ -59,15 +58,10 @@ Resources:
                 Listener: !GetAtt ALB.Outputs.Listener 
                 Path: /static/*
 
-    TodoMongodb:
+    TodoDynamodb:
         Type: AWS::CloudFormation::Stack
         Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-mongodb.yaml
-            Parameters:
-                VPC: !GetAtt VPC.Outputs.VPC
-                Cluster: !GetAtt ECS.Outputs.Cluster
-                DesiredCount: 1
-                LoadBalancer: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancer
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/dynamodb.yaml
 
     NLBTodoBackEnd:
         Type: AWS::CloudFormation::Stack
@@ -88,7 +82,7 @@ Resources:
                 Cluster: !GetAtt ECS.Outputs.Cluster
                 DesiredCount: 2
                 LoadBalancer: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancer
-                TodoMongodbDNS: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancerDNS
+                TodoMongodbDNS: !GetAtt TodoDynamodb.Outputs.Endpoint
 
     TodoFrontEnd:
         Type: AWS::CloudFormation::Stack
