@@ -51,7 +51,7 @@ Resources:
             ContainerDefinitions:
                 - Name: static-service
                   Essential: true
-                  Image: gustavoapolinario/microservices-static-files
+                  Image: gustavoapolinario/nginx-static-files
                   Memory: 128
                   Cpu: '10'
                   PortMappings:

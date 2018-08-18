@@ -44,23 +44,23 @@ Mappings:
 
     AWSRegionToAMI:
         us-east-1:
-          AMIID: ami-eca289fb
+          AMIID: ami-644a431b
         us-east-2:
-          AMIID: ami-446f3521
+          AMIID: ami-79d8e21c
         us-west-1:
-          AMIID: ami-9fadf8ff
+          AMIID: ami-4351bc20
         us-west-2:
-          AMIID: ami-7abc111a
+          AMIID: ami-f189d189
         eu-west-1:
-          AMIID: ami-a1491ad2
+          AMIID: ami-39d530d4
         eu-central-1:
-          AMIID: ami-54f5303b
+          AMIID: ami-9fe2e074
         ap-northeast-1:
-          AMIID: ami-9cd57ffd
+          AMIID: ami-7d0c7a90
         ap-southeast-1:
-          AMIID: ami-a900a3ca
+          AMIID: ami-7d0c7a90
         ap-southeast-2:
-          AMIID: ami-5781be34
+          AMIID: ami-706cca12
 
 Resources:
 
@@ -100,6 +100,7 @@ Resources:
     ECSLaunchConfiguration:
         Type: AWS::AutoScaling::LaunchConfiguration
         Properties:
+          AssociatePublicIpAddress: true
           ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
           SecurityGroups: [!Ref 'SecurityGroup']
           InstanceType: !Ref 'InstanceType'

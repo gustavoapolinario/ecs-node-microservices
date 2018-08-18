@@ -50,7 +50,7 @@ Resources:
             ContainerDefinitions:
                 - Name: todo-frontend
                   Essential: true
-                  Image: gustavoapolinario/microservices-node-todo-frontend
+                  Image: gustavoapolinario/node-todo-frontend
                   Memory: 128
                   Environment: 
                     - Name: TODO_BACKEND

@@ -47,13 +47,13 @@ Resources:
             ContainerDefinitions:
                 - Name: todo-backend
                   Essential: true
-                  Image: gustavoapolinario/microservices-node-todo-backend
+                  Image: gustavoapolinario/node-todo-backend
                   Memory: 256
                   Environment:
                     - Name: MONGODB
                       Value: "todo-mongodb"
                     - Name: MONGODB_PORT
-                      Value: 80
+                      Value: 27017
                     - Name: PORT
                       Value: 3001
                   PortMappings:
@@ -93,7 +93,7 @@ Resources:
         Properties:
             LoadBalancerArn: !Ref LoadBalancer
             Port: 3001
-            Protocol: TCP 
+            Protocol: HTTP 
             DefaultActions: 
                 - Type: forward
                   TargetGroupArn: !Ref TargetGroup
@@ -101,10 +101,16 @@ Resources:
     TargetGroup:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
         Properties:
-            Name: "TGTodoBackEnd"
             VpcId: !Ref VPC
             Port: 3001
-            Protocol: TCP
+            Protocol: HTTP
+            Matcher: 
+                HttpCode: 200-299
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /health_check
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
 
 
 

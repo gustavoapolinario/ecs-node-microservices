@@ -27,11 +27,12 @@ Resources:
         Properties:
             Name: !Join [ "-", [ "NLB", !Ref EnvironmentName ]]
             Subnets: !Ref Subnets
+            SecurityGroups: 
+                - !Ref SecurityGroup
             Tags: 
                 - Key: Name
                   Value: !Ref EnvironmentName
             Scheme: internal
-            Type: network
 
            
 Outputs:

@@ -41,7 +41,7 @@ Resources:
             Parameters:
                 EnvironmentName: !Ref AWS::StackName
                 InstanceType: t2.large
-                ClusterSize: 4
+                ClusterSize: 2
                 VPC: !GetAtt VPC.Outputs.VPC
                 SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
                 Subnets: !GetAtt VPC.Outputs.PrivateSubnets
@@ -102,11 +102,11 @@ Outputs:
 
     StaticServiceUrl: 
         Description: The URL endpoint for the todo service
-        Value: !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "todo" ]]
+        Value: !Join [ "", [!Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "todo" ]], "/"]]
 
     TodoFrontEndUrl: 
         Description: The URL endpoint for the static service
-        Value: !Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "static" ]]
+        Value: !Join [ "", [!Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "static" ]], "/"]]
 
     WebsiteServiceUrl: 
         Description: The URL endpoint for the website service
