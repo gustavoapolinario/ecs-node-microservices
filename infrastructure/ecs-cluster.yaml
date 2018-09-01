@@ -25,9 +25,14 @@ Parameters:
         Description: Choose which subnets this ECS cluster should be deployed to
         Type: List<AWS::EC2::Subnet::Id>
 
-    SecurityGroup:
+    SecurityGroups:
         Description: Select the Security Group to use for the ECS cluster hosts
-        Type: AWS::EC2::SecurityGroup::Id
+        Type: List<AWS::EC2::SecurityGroup::Id>
+
+    KeyName:
+        Description: Name of key to access
+        Type: String
+        Default: 'ec2-key'
 
 Mappings:
 
@@ -100,9 +105,10 @@ Resources:
     ECSLaunchConfiguration:
         Type: AWS::AutoScaling::LaunchConfiguration
         Properties:
+          KeyName: !Ref 'KeyName'
           AssociatePublicIpAddress: true
           ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
-          SecurityGroups: [!Ref 'SecurityGroup']
+          SecurityGroups: !Ref 'SecurityGroups'
           InstanceType: !Ref 'InstanceType'
           IamInstanceProfile: !Ref 'ECSInstanceProfile'
           UserData:

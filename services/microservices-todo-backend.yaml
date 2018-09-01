@@ -51,30 +51,13 @@ Resources:
                   Memory: 256
                   Environment:
                     - Name: MONGODB
-                      Value: "todo-mongodb"
+                      Value: !Ref TodoMongodbDNS
                     - Name: MONGODB_PORT
                       Value: 27017
                     - Name: PORT
                       Value: 3001
                   PortMappings:
                     - ContainerPort: 3001
-                  LogConfiguration:
-                    LogDriver: awslogs
-                    Options:
-                        awslogs-group: !Ref AWS::StackName
-                        awslogs-region: !Ref AWS::Region
-                  Links:
-                    - todo-mongodb
-
-                - Name: todo-mongodb
-                  Essential: true
-                  Image: mongo
-                  Memory: 256
-                  Environment: 
-                    - Name: PORT
-                      Value: 27017
-                  PortMappings:
-                    - ContainerPort: 27017
                   LogConfiguration:
                     LogDriver: awslogs
                     Options:

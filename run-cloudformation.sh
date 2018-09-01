@@ -5,7 +5,7 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-stack_name="node-todo"
+stack_name="node-todo-tests"
 
 case "$1" in
   delete)
@@ -25,5 +25,5 @@ if [ "$action" = "create"  ]; then
 fi
 
 aws cloudformation $action-stack --stack-name $stack_name $extras \
-    --template-url https://s3.amazonaws.com/ecs-node-microservices/master.yaml \
+    --template-url https://s3.amazonaws.com/ecs-node-microservices/master-tests.yaml \
     --capabilities CAPABILITY_NAMED_IAM

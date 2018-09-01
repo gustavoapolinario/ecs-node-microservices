@@ -19,6 +19,22 @@ Parameters:
         Description: Select the Security Group to apply to the Application Load Balancer
         Type: AWS::EC2::SecurityGroup::Id
 
+    IsInternal:
+        Description: Is a internal load balance?
+        Type: String
+        AllowedValues: [ "true", "false" ]
+        Default: false
+
+    CreateDefaultTargetGroup:
+        Description: Create a default target group?
+        Type: String
+        AllowedValues: [ "true", "false" ]
+        Default: true
+
+Conditions:
+    ShouldBeInternal: !Equals [true, !Ref IsInternal]
+    ShouldHaveTG: !Equals [true, !Ref CreateDefaultTargetGroup]
+
 
 Resources:
 
@@ -26,6 +42,7 @@ Resources:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
             Name: !Ref EnvironmentName
+            Scheme: !If [ShouldBeInternal, "internal", "internet-facing"]
             Subnets: !Ref Subnets
             SecurityGroups: 
                 - !Ref SecurityGroup
@@ -35,6 +52,7 @@ Resources:
 
     LoadBalancerListener:
         Type: AWS::ElasticLoadBalancingV2::Listener
+        Condition: ShouldHaveTG
         Properties:
             LoadBalancerArn: !Ref LoadBalancer
             Port: 80
@@ -48,6 +66,7 @@ Resources:
     # a target group is created per-service in each service template (../services/*)
     DefaultTargetGroup:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Condition: ShouldHaveTG
         Properties:
             Name: !Sub ${EnvironmentName}-default
             VpcId: !Ref VPC
@@ -66,4 +85,5 @@ Outputs:
 
     Listener:
         Description: A reference to a port 80 listener
+        Condition: ShouldHaveTG
         Value: !Ref LoadBalancerListener  
