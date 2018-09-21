@@ -58,20 +58,37 @@ Resources:
                 Listener: !GetAtt ALB.Outputs.Listener 
                 Path: /static/*
 
-    TodoDynamodb:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/dynamodb.yaml
-
-    NLBTodoBackEnd:
+    NLBMongoDB:
         Type: AWS::CloudFormation::Stack
         Properties:
             TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/network-load-balancers.yaml
             Parameters:
-                EnvironmentName: !Ref AWS::StackName
+                EnvironmentName: "Mongodb"
                 VPC: !GetAtt VPC.Outputs.VPC
                 Subnets: !GetAtt VPC.Outputs.PublicSubnets
                 SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+
+    TodoMongoDB:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-mongodb.yaml
+            Parameters:
+                VPC: !GetAtt VPC.Outputs.VPC
+                Cluster: !GetAtt ECS.Outputs.Cluster
+                LoadBalancer: !GetAtt NLBMongoDB.Outputs.LoadBalancer
+
+    ALBTodoBackEnd:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/load-balancers.yaml
+            Parameters:
+                EnvironmentName: "alb-todo-backend"
+                VPC: !GetAtt VPC.Outputs.VPC
+                Subnets: !GetAtt VPC.Outputs.PublicSubnets
+                SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+                CreateDefaultTargetGroup: false
+                IsInternal: true
+                CreateDefaultTargetGroup: false            
 
     TodoBackEnd:
         Type: AWS::CloudFormation::Stack
@@ -81,8 +98,8 @@ Resources:
                 VPC: !GetAtt VPC.Outputs.VPC
                 Cluster: !GetAtt ECS.Outputs.Cluster
                 DesiredCount: 2
-                LoadBalancer: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancer
-                TodoMongodbDNS: !GetAtt TodoDynamodb.Outputs.Endpoint
+                LoadBalancer: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancer
+                TodoMongodbDNS: !GetAtt NLBMongoDB.Outputs.LoadBalancer
 
     TodoFrontEnd:
         Type: AWS::CloudFormation::Stack
@@ -94,17 +111,17 @@ Resources:
                 DesiredCount: 2
                 Listener: !GetAtt ALB.Outputs.Listener
                 Path: /todo/*
-                TodoBackEndDNS: !GetAtt NLBTodoBackEnd.Outputs.LoadBalancerDNS
+                TodoBackEndDNS: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancerUrl
 
 
 
 Outputs:
 
-    StaticServiceUrl: 
+    TodoFrontEndUrl: 
         Description: The URL endpoint for the todo service
         Value: !Join [ "", [!Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "todo" ]], "/"]]
 
-    TodoFrontEndUrl: 
+    StaticServiceUrl: 
         Description: The URL endpoint for the static service
         Value: !Join [ "", [!Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "static" ]], "/"]]
 

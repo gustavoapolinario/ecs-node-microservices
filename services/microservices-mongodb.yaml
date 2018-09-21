@@ -1,0 +1,83 @@
+Description: >
+    This is a Database (Mongodb) Service to Todo backend
+Parameters: 
+
+    VPC:
+        Description: The VPC that the ECS cluster is deployed to
+        Type: AWS::EC2::VPC::Id
+        
+    Cluster:
+        Description: Please provide the ECS Cluster ID that this service should run on
+        Type: String
+
+    DesiredCount: 
+        Description: How many instances of this task should we run across our cluster?
+        Type: Number
+        Default: 1
+
+    LoadBalancer:
+        Description: The Application Load Balancer to register with
+        Type: String
+
+Resources:
+
+    Service: 
+        Type: AWS::ECS::Service
+        DependsOn: LoadBalancerListener
+        Properties: 
+            Cluster: !Ref Cluster
+            DesiredCount: !Ref DesiredCount
+            TaskDefinition: !Ref TaskDefinition
+            DeploymentConfiguration:
+                MaximumPercent: 200
+                MinimumHealthyPercent: 50
+            LoadBalancers: 
+                - ContainerName: "todo-mongodb"
+                  ContainerPort: 27017
+                  TargetGroupArn: !Ref TargetGroup
+
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: todo-mongodb
+            ContainerDefinitions:
+                - Name: todo-mongodb
+                  Essential: true
+                  Image: mongo
+                  Memory: 512
+                  Environment: 
+                    - Name: PORT
+                      Value: 27017
+                  PortMappings:
+                    - ContainerPort: 27017
+                  LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-group: !Ref AWS::StackName
+                        awslogs-region: !Ref AWS::Region
+
+    CloudWatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties: 
+            LogGroupName: !Ref AWS::StackName
+            RetentionInDays: 365
+
+
+    LoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 27017
+            Protocol: TCP 
+            DefaultActions: 
+                - Type: forward
+                  TargetGroupArn: !Ref TargetGroup
+
+    TargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: "TGTodoMongodb"
+            VpcId: !Ref VPC
+            Port: 27017
+            Protocol: TCP
+
