@@ -51,6 +51,7 @@ Resources:
                 - Name: todo-frontend
                   Essential: true
                   Image: gustavoapolinario/node-todo-frontend
+                  #Image: 153149144027.dkr.ecr.us-east-1.amazonaws.com/todo-frontend
                   Memory: 128
                   Environment: 
                     - Name: TODO_BACKEND

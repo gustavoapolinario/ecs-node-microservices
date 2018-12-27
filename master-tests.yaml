@@ -2,6 +2,16 @@ Description: >
     Template example base on https://github.com/awslabs/ecs-refarch-cloudformation
     https://docs.aws.amazon.com/pt_br/AWSCloudFormation/latest/UserGuide/quickref-ecs.html
     Author: Gustavo APolinario <gustavo.guss@gmail.com>
+
+Parameters: 
+    AWSAccessKey:
+        Description: The key to access dynamodb
+        Type: String
+        
+    AWSSecret:
+        Description: The secret to access dynamodb
+        Type: String
+
 Resources:
 
     VPC:
@@ -23,7 +33,7 @@ Resources:
             Parameters: 
                 EnvironmentName: !Ref AWS::StackName
                 VPC: !GetAtt VPC.Outputs.VPC
-
+    
     Mongodb:
         Type: AWS::CloudFormation::Stack
         Properties:
@@ -36,94 +46,8 @@ Resources:
                 MongoDBAdminUsername: "admin"
                 MongoDBAdminPassword: "adminadmin"
                 NodeInstanceType: "m5.large"
-                PrimaryNodeSubnet: !GetAtt VPC.Outputs.PrivateSubnet1
-                Secondary0NodeSubnet: !GetAtt VPC.Outputs.PrivateSubnet1
-                Secondary1NodeSubnet: !GetAtt VPC.Outputs.PrivateSubnet2
+                PrimaryNodeSubnet: !GetAtt VPC.Outputs.PublicSubnet1
+                Secondary0NodeSubnet: !GetAtt VPC.Outputs.PublicSubnet1
+                Secondary1NodeSubnet: !GetAtt VPC.Outputs.PublicSubnet2
+                # MongoDBServerSecurityGroup: !GetAtt SecurityGroups.Outputs.MongoDBSecurityGroup
 
-    ALB:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/load-balancers.yaml
-            Parameters:
-                EnvironmentName: !Ref AWS::StackName
-                VPC: !GetAtt VPC.Outputs.VPC
-                Subnets: !GetAtt VPC.Outputs.PublicSubnets
-                SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
-
-    ECS:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/ecs-cluster.yaml
-            Parameters:
-                EnvironmentName: !Ref AWS::StackName
-                InstanceType: t2.large
-                ClusterSize: 2
-                VPC: !GetAtt VPC.Outputs.VPC
-                SecurityGroups: !Join [ ",", [!GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup, !GetAtt Mongodb.Outputs.MongoDBServerAccessSecurityGroup]]
-                Subnets: !GetAtt VPC.Outputs.PrivateSubnets
-
-
-    StaticService:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-static.yaml
-            Parameters:
-                VPC: !GetAtt VPC.Outputs.VPC
-                Cluster: !GetAtt ECS.Outputs.Cluster
-                DesiredCount: 2
-                Listener: !GetAtt ALB.Outputs.Listener 
-                Path: /static/*
-
-    ALBTodoBackEnd:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/load-balancers.yaml
-            Parameters:
-                EnvironmentName: "alb-todo-backend"
-                VPC: !GetAtt VPC.Outputs.VPC
-                Subnets: !GetAtt VPC.Outputs.PublicSubnets
-                SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
-                CreateDefaultTargetGroup: false
-                IsInternal: true     
-
-    TodoBackEnd:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-todo-backend.yaml
-            Parameters:
-                VPC: !GetAtt VPC.Outputs.VPC
-                Cluster: !GetAtt ECS.Outputs.Cluster
-                DesiredCount: 2
-                LoadBalancer: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancer
-                TodoMongodbDNS: !GetAtt Mongodb.Outputs.PrimaryReplicaNodeIp
-
-    TodoFrontEnd:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-todo-frontend.yaml
-            Parameters:
-                VPC: !GetAtt VPC.Outputs.VPC
-                Cluster: !GetAtt ECS.Outputs.Cluster
-                DesiredCount: 2
-                Listener: !GetAtt ALB.Outputs.Listener
-                Path: /todo/*
-                TodoBackEndDNS: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancerUrl
-
-
-Outputs:
-
-    VPC:
-      Description: VPC
-      Value: VPC.Outputs.VPC
-
-    TodoFrontEndUrl: 
-        Description: The URL endpoint for the todo service
-        Value: !Join [ "", [!Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "todo" ]], "/"]]
-
-    StaticServiceUrl: 
-        Description: The URL endpoint for the static service
-        Value: !Join [ "", [!Join [ "/", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "static" ]], "/"]]
-
-    WebsiteServiceUrl: 
-        Description: The URL endpoint for the website service
-        Value: !Join ["", [ !GetAtt ALB.Outputs.LoadBalancerUrl, "/" ]]

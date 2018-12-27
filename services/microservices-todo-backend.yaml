@@ -19,7 +19,7 @@ Parameters:
         Description: The Application Load Balancer to register with
         Type: String
 
-    TodoMongodbDNS:
+    MONGODB:
         Description: The access to Todo backend Service
         Type: String
 
@@ -50,12 +50,14 @@ Resources:
                   Image: gustavoapolinario/node-todo-backend
                   Memory: 256
                   Environment:
-                    - Name: MONGODB
-                      Value: !Ref TodoMongodbDNS
-                    - Name: MONGODB_PORT
-                      Value: 27017
                     - Name: PORT
                       Value: 3001
+                    - Name: MONGODB
+                      Value: !Ref MONGODB
+                    - Name: MONGODB_PORT
+                      Value: 27017
+                    - Name: ENVIRONMENT
+                      Value: "PROD"
                   PortMappings:
                     - ContainerPort: 3001
                   LogConfiguration:

@@ -21,9 +21,12 @@ esac
 
 extra=""
 if [ "$action" = "create"  ]; then
-  extra="--disable-rollback --on-failure DO_NOTHING"
+  extra="--disable-rollback"
 fi
 
-aws cloudformation $action-stack --stack-name $stack_name $extras \
-    --template-url https://s3.amazonaws.com/ecs-node-microservices/master-tests.yaml \
+#parameters=$(cat ./parameters.txt)
+#extra="$extra --parameters $parameters"
+
+aws cloudformation $action-stack --stack-name $stack_name $extra \
+    --template-url https://s3.amazonaws.com/ecs-node-microservices/master.yaml \
     --capabilities CAPABILITY_NAMED_IAM

@@ -46,6 +46,30 @@ Resources:
                 - Key: Name
                   Value: !Sub ${EnvironmentName}-LoadBalancers
 
+    # # This security group defines who/where is allowed to access the Mongodb
+    # MongoDBSecurityGroup:
+    #     Type: AWS::EC2::SecurityGroup
+    #     Properties: 
+    #         VpcId: !Ref VPC
+    #         GroupDescription: Access to the MongoDB
+    #         SecurityGroupIngress:
+    #             - CidrIp: 0.0.0.0/0
+    #               IpProtocol: tcp
+    #               FromPort: 27017
+    #               ToPort: 27017
+    #         Tags: 
+    #             - Key: Name
+    #               Value: !Sub ${EnvironmentName}-Mongodb
+
+    # MongoDBSecurityGroupIngress:
+    #     Type: AWS::EC2::SecurityGroupIngress
+    #     Properties:
+    #         GroupId: !Ref MongoDBSecurityGroup
+    #         IpProtocol: tcp
+    #         FromPort: 27017
+    #         ToPort: 27017
+    #         SourceSecurityGroupId: !Ref MongoDBSecurityGroup
+
 Outputs:
 
     ECSHostSecurityGroup: 
@@ -55,3 +79,7 @@ Outputs:
     LoadBalancerSecurityGroup:
         Description: A reference to the security group for load balancers
         Value: !Ref LoadBalancerSecurityGroup
+
+    # MongoDBSecurityGroup:
+    #     Description: A reference to the security group for load balancers
+    #     Value: !Ref MongoDBSecurityGroup

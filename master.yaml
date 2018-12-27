@@ -2,6 +2,7 @@ Description: >
     Template example base on https://github.com/awslabs/ecs-refarch-cloudformation
     https://docs.aws.amazon.com/pt_br/AWSCloudFormation/latest/UserGuide/quickref-ecs.html
     Author: Gustavo APolinario <gustavo.guss@gmail.com>
+
 Resources:
 
     VPC:
@@ -24,6 +25,18 @@ Resources:
                 EnvironmentName: !Ref AWS::StackName
                 VPC: !GetAtt VPC.Outputs.VPC
 
+    # Bastion:
+    #     Type: AWS::CloudFormation::Stack
+    #     Properties:
+    #         TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/bastion-server.yaml
+    #         Parameters:
+    #             VPCID: !GetAtt VPC.Outputs.VPC
+    #             Subnets: !GetAtt VPC.Outputs.PublicSubnets
+    #             RemoteAccessCIDR: 187.22.77.33
+    #             KeyPairName: 'ec2-key'
+    #             BastionInstanceType: 't2.micro'
+    #             NumBastionHosts: 1
+
     ALB:
         Type: AWS::CloudFormation::Stack
         Properties:
@@ -43,8 +56,8 @@ Resources:
                 InstanceType: t2.large
                 ClusterSize: 2
                 VPC: !GetAtt VPC.Outputs.VPC
-                SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
-                Subnets: !GetAtt VPC.Outputs.PrivateSubnets
+                SecurityGroups: !Join [ ",", [ !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup, !GetAtt Mongodb.Outputs.MongoDBServerAccessSecurityGroup ]]
+                Subnets: !GetAtt VPC.Outputs.PublicSubnets
 
 
     StaticService:
@@ -57,25 +70,23 @@ Resources:
                 DesiredCount: 2
                 Listener: !GetAtt ALB.Outputs.Listener 
                 Path: /static/*
-
-    NLBMongoDB:
+    
+    Mongodb:
         Type: AWS::CloudFormation::Stack
         Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/network-load-balancers.yaml
-            Parameters:
-                EnvironmentName: "Mongodb"
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/ec2-mongodb.yaml
+            Parameters: 
                 VPC: !GetAtt VPC.Outputs.VPC
-                Subnets: !GetAtt VPC.Outputs.PublicSubnets
-                SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
-
-    TodoMongoDB:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-mongodb.yaml
-            Parameters:
-                VPC: !GetAtt VPC.Outputs.VPC
-                Cluster: !GetAtt ECS.Outputs.Cluster
-                LoadBalancer: !GetAtt NLBMongoDB.Outputs.LoadBalancer
+                ClusterReplicaSetCount: 1
+                BastionSecurityGroupID: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+                KeyPairName: "ec2-key"
+                MongoDBAdminUsername: "admin"
+                MongoDBAdminPassword: "adminadmin"
+                NodeInstanceType: "m5.large"
+                PrimaryNodeSubnet: !GetAtt VPC.Outputs.PublicSubnet1
+                Secondary0NodeSubnet: !GetAtt VPC.Outputs.PublicSubnet1
+                Secondary1NodeSubnet: !GetAtt VPC.Outputs.PublicSubnet2
+                # MongoDBServerSecurityGroup: !GetAtt SecurityGroups.Outputs.MongoDBSecurityGroup
 
     ALBTodoBackEnd:
         Type: AWS::CloudFormation::Stack
@@ -99,7 +110,7 @@ Resources:
                 Cluster: !GetAtt ECS.Outputs.Cluster
                 DesiredCount: 2
                 LoadBalancer: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancer
-                TodoMongodbDNS: !GetAtt NLBMongoDB.Outputs.LoadBalancer
+                MONGODB: !GetAtt Mongodb.Outputs.PrimaryReplicaNodeIp
 
     TodoFrontEnd:
         Type: AWS::CloudFormation::Stack
