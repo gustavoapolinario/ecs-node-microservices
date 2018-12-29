@@ -12,6 +12,14 @@ Parameters:
     Type: String
     Default: master
 
+  ECSCluster:
+    Description: Cluster ECS to update service
+    Type: String
+    
+  ECSService:
+    Description: Service ECS to update
+    Type: String
+
 Resources:
 
   CodeBuildRole:
@@ -157,7 +165,10 @@ Resources:
   AppPipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
-      Name: codecommit-events-pipeline
+      Name:  !Join 
+        - ''
+        - - !Ref RepositoryName
+          - '-pipeline'
       RoleArn: !GetAtt 
         - CodePipelineServiceRole
         - Arn
@@ -190,37 +201,23 @@ Resources:
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
-                - Name: BuildOutput
-              RunOrder: 2
-        # - Name: Beta
-        #   Actions:
-        #     - Name: BetaAction
-        #       InputArtifacts:
-        #         - Name: SourceOutput
-        #       ActionTypeId:
-        #         Category: Deploy
-        #         Owner: AWS
-        #         Version: 1
-        #         Provider: CodeDeploy
-        #       Configuration:
-        #         ApplicationName: !Ref ApplicationName
-        #         DeploymentGroupName: !Ref BetaFleet
-        #       RunOrder: 3
-        # - Name: Deploy
-        #   Actions:
-        #     - Name: Deploy
-        #       ActionTypeId:
-        #         Category: Deploy
-        #         Owner: AWS
-        #         Version: 1
-        #         Provider: ECS
-        #       Configuration:
-        #         ClusterName: !Ref Cluster
-        #         ServiceName: !Ref Service
-        #         FileName: images.json
-        #       InputArtifacts:
-        #         - Name: BuildOutput
-        #       RunOrder: 3
+                - Name: BuildedOutput
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: ECS
+              Configuration:
+                ClusterName: !Ref ECSCluster
+                ServiceName: !Ref ECSService
+                FileName: imagedefinitions.json
+              InputArtifacts:
+                - Name: BuildedOutput
+              RunOrder: 1
       ArtifactStore:
         Type: S3
         Location: !Ref CodePipelineArtifactStoreBucket

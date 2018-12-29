@@ -138,3 +138,9 @@ Resources:
                                 "Resource": "*"
                         }]
                     }
+
+Outputs:
+
+    ServiceName: 
+        Description: The URL endpoint for dynamodb service
+        Value: !GetAtt Service.Name
