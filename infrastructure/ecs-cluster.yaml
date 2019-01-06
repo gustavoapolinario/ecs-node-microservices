@@ -1,6 +1,7 @@
 Description: >
     This template deploys an ECS cluster to the provided VPC and subnets 
     using an Auto Scaling Group
+
 Parameters:
 
     EnvironmentName:
@@ -12,8 +13,18 @@ Parameters:
         Type: String
         Default: c4.large
 
-    ClusterSize:
+    DesiredCapacity:
         Description: How many ECS hosts do you want to initially deploy?
+        Type: Number
+        Default: 4
+
+    MinSize:
+        Description: How many ECS hosts is the minimal capacity
+        Type: Number
+        Default: 1
+
+    MaxSize:
+        Description: How many ECS hosts is the maximum capacity
         Type: Number
         Default: 4
 
@@ -28,11 +39,16 @@ Parameters:
     SecurityGroups:
         Description: Select the Security Group to use for the ECS cluster hosts
         Type: List<AWS::EC2::SecurityGroup::Id>
-
-    KeyName:
+        
+    AlertARN:
+        Description: ARN of alert services
+        Type: String
+        
+    SSHKeyName:
         Description: Name of key to access
         Type: String
         Default: 'ec2-key'
+        
 
 Mappings:
 
@@ -79,9 +95,9 @@ Resources:
         Properties: 
             VPCZoneIdentifier: !Ref Subnets
             LaunchConfigurationName: !Ref ECSLaunchConfiguration
-            MinSize: !Ref ClusterSize
-            MaxSize: !Ref ClusterSize
-            DesiredCapacity: !Ref ClusterSize
+            MinSize: !Ref MinSize
+            MaxSize: !Ref MaxSize
+            DesiredCapacity: !Ref DesiredCapacity
             Tags: 
                 - Key: Name
                   Value: !Sub ${EnvironmentName} ECS host
@@ -105,18 +121,19 @@ Resources:
     ECSLaunchConfiguration:
         Type: AWS::AutoScaling::LaunchConfiguration
         Properties:
-          KeyName: !Ref 'KeyName'
-          AssociatePublicIpAddress: true
-          ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
-          SecurityGroups: !Ref 'SecurityGroups'
-          InstanceType: !Ref 'InstanceType'
-          IamInstanceProfile: !Ref 'ECSInstanceProfile'
-          UserData:
-            Fn::Base64: !Sub |
-              #!/bin/bash -xe
-              echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-              yum install -y aws-cfn-bootstrap
-              /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+            ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMIID]
+            AssociatePublicIpAddress: true
+            SecurityGroups: !Ref 'SecurityGroups'
+            InstanceType: !Ref 'InstanceType'
+            IamInstanceProfile: !Ref 'ECSInstanceProfile'
+            KeyName: !Ref 'SSHKeyName'
+            UserData:
+                Fn::Base64: !Sub |
+                  #!/bin/bash -xe
+                  echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+                  yum install -y aws-cfn-bootstrap
+                  /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+
 
     # This IAM Role is attached to all of the ECS hosts. It is based on the default role
     # published here:
@@ -171,6 +188,169 @@ Resources:
             Path: /
             Roles: 
                 - !Ref ECSRole
+
+    ScaleUpPolicy:
+        Type: AWS::AutoScaling::ScalingPolicy
+        Properties:
+            AdjustmentType: ChangeInCapacity
+            AutoScalingGroupName: !Ref ECSAutoScalingGroup
+            Cooldown: 120
+            ScalingAdjustment: 1
+
+    CPUTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Average CPU utilization over last 10 minutes higher than 80%'
+            Namespace: 'AWS/EC2'
+            MetricName: CPUUtilization
+            Statistic: Average
+            Period: 60
+            EvaluationPeriods: 5
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 80
+            AlarmActions:
+             - Ref: ScaleUpPolicy
+             - Ref: AlertARN
+            Dimensions:
+             - Name: AutoScalingGroupName
+               Value: !Ref ECSAutoScalingGroup
+              
+              
+    ScaleDownPolicy:
+        Type: AWS::AutoScaling::ScalingPolicy
+        Properties:
+            AdjustmentType: ChangeInCapacity
+            AutoScalingGroupName: !Ref ECSAutoScalingGroup
+            Cooldown: 120
+            ScalingAdjustment: -1
+
+    CPUTooLowAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Average CPU utilization over last 10 minutes lower than 30%'
+            Namespace: 'AWS/EC2'
+            MetricName: CPUUtilization
+            Statistic: Average
+            Period: 60
+            EvaluationPeriods: 5
+            ComparisonOperator: LessThanThreshold
+            Threshold: 30
+            AlarmActions:
+             - Ref: ScaleDownPolicy
+             - Ref: AlertARN
+            Dimensions:
+            - Name: AutoScalingGroupName
+              Value: !Ref ECSAutoScalingGroup
+            
+      
+    # ContainerInstancesShortageAlarm:
+        # Type: 'AWS::CloudWatch::Alarm'
+        # Properties:
+            # AlarmDescription: 'Cluster is running out of container instances'
+            # Namespace: AWS/ECS
+            # Dimensions:
+            # - Name: ClusterName
+              # Value: !Ref ECSCluster
+            # MetricName: SchedulableContainers
+            # ComparisonOperator: LessThanOrEqualToThreshold
+            # Statistic: Minimum # special rule because we scale on reservations and not utilization
+            # Period: 60
+            # EvaluationPeriods: 5
+            # Threshold: 2
+            # AlarmActions:
+            # - Ref: ScaleUpPolicy
+            # - Ref: AlertARN
+
+    # ContainerInstancesExcessAlarm:
+        # Type: 'AWS::CloudWatch::Alarm'
+        # Properties:
+            # AlarmDescription: 'Cluster is wasting container instances'
+            # Namespace: AWS/ECS
+            # Dimensions:
+            # - Name: ClusterName
+              # Value: !Ref ECSCluster
+            # MetricName: SchedulableContainers
+            # ComparisonOperator: GreaterThanOrEqualToThreshold
+            # Statistic: Maximum # special rule because we scale on reservations and not utilization
+            # Period: 60
+            # EvaluationPeriods: 5
+            # Threshold: 10
+            # AlarmActions:
+            # - Ref: ScaleDownPolicy
+            # - Ref: AlertARN
+  
+  
+    CPUReservationTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Average CPU reservation over last 10 minutes higher than 90%'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+            - Name: ClusterName
+              Value: !Ref ECSCluster
+            MetricName: CPUReservation
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average # special rule because we scale on reservations and not utilization
+            Period: 60
+            EvaluationPeriods: 5
+            Threshold: 90
+            AlarmActions:
+             - Ref: ScaleUpPolicy
+             - Ref: AlertARN
+             
+    CPUUtilizationTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Average CPU utilization over last 10 minutes higher than 80%'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+            - Name: ClusterName
+              Value: !Ref ECSCluster
+            MetricName: CPUUtilization
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average # special rule because we scale on reservations and not utilization
+            Period: 60
+            EvaluationPeriods: 5
+            Threshold: 80
+            AlarmActions:
+             - Ref: ScaleUpPolicy
+             - Ref: AlertARN
+
+    MemoryReservationTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Average memory reservation over last 10 minutes higher than 75%'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+            - Name: ClusterName
+              Value: !Ref ECSCluster
+            MetricName: MemoryReservation
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average # special rule because we scale on reservations and not utilization
+            Period: 60
+            EvaluationPeriods: 5
+            Threshold: 75
+            AlarmActions:
+             - Ref: ScaleUpPolicy
+             - Ref: AlertARN
+
+    MemoryUtilizationTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Average memory utilization over last 10 minutes higher than 80%'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+            - Name: ClusterName
+              Value: !Ref ECSCluster
+            MetricName: MemoryUtilization
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average
+            Period: 60
+            EvaluationPeriods: 5
+            Threshold: 80
+            AlarmActions:
+             - Ref: ScaleUpPolicy
+             - Ref: AlertARN
 
 Outputs:
 

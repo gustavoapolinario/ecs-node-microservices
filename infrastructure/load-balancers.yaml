@@ -86,4 +86,8 @@ Outputs:
     Listener:
         Description: A reference to a port 80 listener
         Condition: ShouldHaveTG
-        Value: !Ref LoadBalancerListener  
+        Value: !Ref LoadBalancerListener
+
+    LoadBalancerFullName:
+        Description: O nome completo do load balancer, por exemplo, app/my-load-balancer/50dc6c495c0c9188
+        Value: !GetAtt LoadBalancer.LoadBalancerFullName

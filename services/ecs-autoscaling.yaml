@@ -1,0 +1,190 @@
+Description: >
+    This template contains the application auto scalling for ECS containers
+    
+Parameters:
+    
+    MinSize:
+        Description: Minimum containers in execution
+        Type: Number
+        Default: 1
+
+    MaxSize:
+        Description: Maximum containers in execution
+        Type: Number
+        Default: 10
+        
+    ClusterName:
+        Description: Name of ECS cluster
+        Type: String
+        
+    ServiceName:
+        Description: Name of ECS service
+        Type: String
+        
+    CPUUtilizationHighThreshold:
+        Description: Maximum containers in execution
+        Type: Number
+        Default: 70
+        
+    CPUUtilizationLowThreshold:
+        Description: Maximum containers in execution
+        Type: Number
+        Default: 30
+        
+    AlertARN:
+        Description: Arn of alert services
+        Type: String
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+
+Resources:
+
+    ScalableTarget:
+        Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+        Properties:
+            MaxCapacity: !Ref MaxSize
+            MinCapacity: !Ref MinSize
+            ResourceId: !Join
+              - /
+              - - service
+                - !Ref ClusterName
+                - !Ref ServiceName
+            RoleARN: !GetAtt ECSScalingRole.Arn
+            ScalableDimension: ecs:service:DesiredCount
+            ServiceNamespace: ecs
+
+    ScaleUpPolicy:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-up'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 300
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalLowerBound: 0
+                    ScalingAdjustment: 25
+
+    CPUUtilizationHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is running out of CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref ClusterName
+              - Name: ServiceName
+                Value: !Ref ServiceName
+            MetricName: CPUUtilization
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average
+            Period: 60
+            EvaluationPeriods: 3
+            Threshold: !Ref CPUUtilizationHighThreshold
+            AlarmActions:
+             - !Ref ScaleUpPolicy
+             - !Ref AlertARN
+
+    ScaleUpPolicyFaster:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-up-faster'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 60
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalLowerBound: 0
+                    ScalingAdjustment: 25
+
+    CPUUtilizationHighAlarmFaster:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is running out of CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref ClusterName
+              - Name: ServiceName
+                Value: !Ref ServiceName
+            MetricName: CPUUtilization
+            ComparisonOperator: GreaterThanThreshold
+            Statistic: Average
+            Period: 60
+            EvaluationPeriods: 1
+            Threshold: 90
+            AlarmActions:
+              - !Ref ScaleUpPolicyFaster
+              - !Ref AlertARN
+
+
+    ScaleDownPolicy:
+        Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+        Properties:
+            PolicyName: !Sub '${AWS::StackName}-scale-down'
+            PolicyType: StepScaling
+            ScalingTargetId: !Ref ScalableTarget
+            StepScalingPolicyConfiguration:
+                AdjustmentType: PercentChangeInCapacity
+                Cooldown: 300
+                MinAdjustmentMagnitude: 1
+                StepAdjustments:
+                  - MetricIntervalUpperBound: 0
+                    ScalingAdjustment: -25
+                    
+    CPUUtilizationLowAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Service is wasting CPU'
+            Namespace: 'AWS/ECS'
+            Dimensions:
+              - Name: ClusterName
+                Value: !Ref ClusterName
+              - Name: ServiceName
+                Value: !Ref ServiceName
+            MetricName: CPUUtilization
+            ComparisonOperator: LessThanThreshold
+            Statistic: Average
+            Period: 60
+            EvaluationPeriods: 2
+            Threshold: !Ref CPUUtilizationLowThreshold
+            AlarmActions:
+              - !Ref ScaleDownPolicy
+              - !Ref AlertARN
+
+    ECSScalingRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+            RoleName: !Sub '${EnvironmentName}-ecs-scale-${AWS::Region}'
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                        Service:
+                            - application-autoscaling.amazonaws.com
+                    Action:
+                      - 'sts:AssumeRole'
+            Path: /
+            Policies:
+              - PolicyName: 'root'
+                PolicyDocument:
+                    Version: 2012-10-17
+                    Statement:
+                          - Effect: Allow
+                            Action: 
+                                - "ecs:UpdateService"
+                                - "ecs:DescribeServices"
+                                - "application-autoscaling:*"
+                                - "cloudwatch:DescribeAlarms"
+                                - "cloudwatch:GetMetricStatistics"
+                                - "cloudwatch:SetAlarmState"
+                            Resource: '*'
+

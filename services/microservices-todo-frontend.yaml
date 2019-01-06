@@ -28,6 +28,14 @@ Parameters:
         Description: The access to Todo backend Service
         Type: String
 
+    AlertARN:
+        Description: Arn of alert services
+        Type: String
+
+    LoadBalancerFullName:
+        Description: Load Balance Name to tag event metrics
+        Type: String
+
 Resources:
 
     Service: 
@@ -38,6 +46,9 @@ Resources:
             Role: !Ref ServiceRole
             DesiredCount: !Ref DesiredCount
             TaskDefinition: !Ref TaskDefinition
+            DeploymentConfiguration:
+                MaximumPercent: 200
+                MinimumHealthyPercent: 50
             LoadBalancers: 
                 - ContainerName: "todo-frontend"
                   ContainerPort: 3000
@@ -138,6 +149,96 @@ Resources:
                                 "Resource": "*"
                         }]
                     }
+
+    AppAutoScaling:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/ecs-autoscaling.yaml
+            Parameters:
+                MinSize: 1
+                MaxSize: 5
+                ServiceName: !GetAtt Service.Name
+                ClusterName: !Ref Cluster
+                CPUUtilizationHighThreshold: 70
+                CPUUtilizationLowThreshold: 30
+                AlertARN: !Ref AlertARN
+                EnvironmentName: !Ref AWS::StackName
+      
+    HTTPCodeELB5XXTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Application load balancer returns 5XX HTTP status codes'
+            Namespace: 'AWS/ApplicationELB'
+            MetricName: HTTPCode_ELB_5XX_Count
+            Statistic: Sum
+            Period: 60
+            EvaluationPeriods: 1
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 0
+            AlarmActions:
+            - !Ref AlertARN
+            Dimensions:
+            - Name: LoadBalancer
+              Value: !Ref LoadBalancerFullName
+            - Name: TargetGroup
+              Value: !GetAtt 'TargetGroup.TargetGroupFullName'
+        
+    HTTPCodeTarget5XXTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Application load balancer receives 5XX HTTP status codes from targets'
+            Namespace: 'AWS/ApplicationELB'
+            MetricName: HTTPCode_Target_5XX_Count
+            Statistic: Sum
+            Period: 60
+            EvaluationPeriods: 1
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 0
+            AlarmActions:
+            - !Ref AlertARN
+            Dimensions:
+            - Name: LoadBalancer
+              Value: !Ref LoadBalancerFullName
+            - Name: TargetGroup
+              Value: !GetAtt 'TargetGroup.TargetGroupFullName'
+               
+    RejectedConnectionCountTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Application load balancer rejected connections because the load balancer had reached its maximum number of connections'
+            Namespace: 'AWS/ApplicationELB'
+            MetricName: RejectedConnectionCount
+            Statistic: Sum
+            Period: 60
+            EvaluationPeriods: 1
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 0
+            AlarmActions:
+            - !Ref AlertARN
+            Dimensions:
+            - Name: LoadBalancer
+              Value: !Ref LoadBalancerFullName
+            - Name: TargetGroup
+              Value: !GetAtt 'TargetGroup.TargetGroupFullName'
+        
+    TargetConnectionErrorCountTooHighAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+            AlarmDescription: 'Application load balancer could not connect to targets'
+            Namespace: 'AWS/ApplicationELB'
+            MetricName: TargetConnectionErrorCount
+            Statistic: Sum
+            Period: 60
+            EvaluationPeriods: 1
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 0
+            AlarmActions:
+            - !Ref AlertARN
+            Dimensions:
+            - Name: LoadBalancer
+              Value: !Ref LoadBalancerFullName
+            - Name: TargetGroup
+              Value: !GetAtt 'TargetGroup.TargetGroupFullName'
 
 Outputs:
 

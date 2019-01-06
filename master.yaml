@@ -3,6 +3,12 @@ Description: >
     https://docs.aws.amazon.com/pt_br/AWSCloudFormation/latest/UserGuide/quickref-ecs.html
     Author: Gustavo APolinario <gustavo.guss@gmail.com>
 
+Parameters:
+  Email:
+    Description: 'Optional email address that will receive alerts'
+    Type: String
+    Default: ''
+
 Resources:
 
     VPC:
@@ -25,6 +31,13 @@ Resources:
                 EnvironmentName: !Ref AWS::StackName
                 VPC: !GetAtt VPC.Outputs.VPC
 
+    Alerts:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/alerts.yaml
+            Parameters:
+                Email: !Ref Email
+
     # Bastion:
     #     Type: AWS::CloudFormation::Stack
     #     Properties:
@@ -46,30 +59,6 @@ Resources:
                 VPC: !GetAtt VPC.Outputs.VPC
                 Subnets: !GetAtt VPC.Outputs.PublicSubnets
                 SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
-
-    ECS:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/ecs-cluster.yaml
-            Parameters:
-                EnvironmentName: !Ref AWS::StackName
-                InstanceType: t2.large
-                ClusterSize: 2
-                VPC: !GetAtt VPC.Outputs.VPC
-                SecurityGroups: !Join [ ",", [ !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup, !GetAtt Mongodb.Outputs.MongoDBServerAccessSecurityGroup ]]
-                Subnets: !GetAtt VPC.Outputs.PublicSubnets
-
-
-    StaticService:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-static.yaml
-            Parameters:
-                VPC: !GetAtt VPC.Outputs.VPC
-                Cluster: !GetAtt ECS.Outputs.Cluster
-                DesiredCount: 2
-                Listener: !GetAtt ALB.Outputs.Listener 
-                Path: /static/*
     
     Mongodb:
         Type: AWS::CloudFormation::Stack
@@ -86,7 +75,35 @@ Resources:
                 PrimaryNodeSubnet: !GetAtt VPC.Outputs.PublicSubnet1
                 Secondary0NodeSubnet: !GetAtt VPC.Outputs.PublicSubnet1
                 Secondary1NodeSubnet: !GetAtt VPC.Outputs.PublicSubnet2
-                # MongoDBServerSecurityGroup: !GetAtt SecurityGroups.Outputs.MongoDBSecurityGroup
+
+    ECS:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/infrastructure/ecs-cluster.yaml
+            Parameters:
+                EnvironmentName: !Ref AWS::StackName
+                InstanceType: t2.large
+                DesiredCapacity: 2
+                MinSize: 2
+                MaxSize: 5
+                VPC: !GetAtt VPC.Outputs.VPC
+                SecurityGroups: !Join [ ",", [ !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup, !GetAtt Mongodb.Outputs.MongoDBServerAccessSecurityGroup ]]
+                Subnets: !GetAtt VPC.Outputs.PublicSubnets
+                AlertARN: !GetAtt Alerts.Outputs.TopicARN
+
+
+    StaticService:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/services/microservices-static.yaml
+            Parameters:
+                VPC: !GetAtt VPC.Outputs.VPC
+                Cluster: !GetAtt ECS.Outputs.Cluster
+                DesiredCount: 2
+                Listener: !GetAtt ALB.Outputs.Listener 
+                Path: /static/*
+                LoadBalancerFullName: !GetAtt ALB.Outputs.LoadBalancerFullName
+                AlertARN: !GetAtt Alerts.Outputs.TopicARN
 
     ALBTodoBackEnd:
         Type: AWS::CloudFormation::Stack
@@ -111,6 +128,8 @@ Resources:
                 DesiredCount: 2
                 LoadBalancer: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancer
                 MONGODB: !GetAtt Mongodb.Outputs.PrimaryReplicaNodeIp
+                LoadBalancerFullName: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancerFullName
+                AlertARN: !GetAtt Alerts.Outputs.TopicARN
 
     TodoFrontEnd:
         Type: AWS::CloudFormation::Stack
@@ -123,16 +142,18 @@ Resources:
                 Listener: !GetAtt ALB.Outputs.Listener
                 Path: /todo/*
                 TodoBackEndDNS: !GetAtt ALBTodoBackEnd.Outputs.LoadBalancerUrl
+                LoadBalancerFullName: !GetAtt ALB.Outputs.LoadBalancerFullName
+                AlertARN: !GetAtt Alerts.Outputs.TopicARN
 
-    TodoFrontEndPipeline:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/automations/aws-codepipeline.yaml
-            Parameters:
-                  RepositoryName: node-todo-frontend
-                  BranchName: master
-                  ECSCluster: !GetAtt ECS.Outputs.Cluster
-                  ECSService: !GetAtt TodoFrontEnd.Outputs.ServiceName
+    # TodoFrontEndPipeline:
+    #     Type: AWS::CloudFormation::Stack
+    #     Properties:
+    #         TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/automations/aws-codepipeline.yaml
+    #         Parameters:
+    #               RepositoryName: node-todo-frontend
+    #               BranchName: master
+    #               ECSCluster: !GetAtt ECS.Outputs.Cluster
+    #               ECSService: !GetAtt TodoFrontEnd.Outputs.ServiceName
 
 
 
