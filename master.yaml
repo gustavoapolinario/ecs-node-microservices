@@ -145,15 +145,15 @@ Resources:
                 LoadBalancerFullName: !GetAtt ALB.Outputs.LoadBalancerFullName
                 AlertARN: !GetAtt Alerts.Outputs.TopicARN
 
-    # TodoFrontEndPipeline:
-    #     Type: AWS::CloudFormation::Stack
-    #     Properties:
-    #         TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/automations/aws-codepipeline.yaml
-    #         Parameters:
-    #               RepositoryName: node-todo-frontend
-    #               BranchName: master
-    #               ECSCluster: !GetAtt ECS.Outputs.Cluster
-    #               ECSService: !GetAtt TodoFrontEnd.Outputs.ServiceName
+    TodoFrontEndPipeline:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: https://s3.amazonaws.com/ecs-node-microservices/automations/aws-codepipeline.yaml
+            Parameters:
+                  RepositoryName: node-todo-frontend
+                  BranchName: master
+                  ECSCluster: !GetAtt ECS.Outputs.Cluster
+                  ECSService: !GetAtt TodoFrontEnd.Outputs.ServiceName
 
 
 
